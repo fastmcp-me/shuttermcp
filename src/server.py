@@ -28,12 +28,13 @@ import secrets
 import requests
 from dateutil.parser import parse as parse_date
 from dateutil.relativedelta import relativedelta
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
 from mcp.server.sse import SseServerTransport
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
+from starlette.responses import JSONResponse
 
 # Configuration
 SHUTTER_API_BASE = "https://shutter-api.chiado.staging.shutter.network/api"
@@ -496,40 +497,46 @@ def explain_timelock_encryption() -> str:
     
     return json.dumps(explanation, indent=2)
 
-def create_sse_server(mcp: FastMCP):
-    """
-    Create a Starlette app that handles SSE connections and message handling.
-    
-    This creates the Server-Sent Events (SSE) transport layer required for
-    Claude web integration with the MCP protocol.
-    
-    Args:
-        mcp: FastMCP server instance
-        
-    Returns:
-        Starlette application configured for SSE
-    """
-    transport = SseServerTransport("/messages/")
+# Create the MCP SSE transport
+transport = SseServerTransport("/messages")
 
-    # Define handler functions
-    async def handle_sse(request):
-        async with transport.connect_sse(
-            request.scope, request.receive, request._send
-        ) as streams:
-            await mcp._mcp_server.run(
-                streams[0], streams[1], mcp._mcp_server.create_initialization_options()
-            )
+# Define SSE handler function
+async def handle_sse(request):
+    async with transport.connect_sse(
+        request.scope, request.receive, request._send
+    ) as streams:
+        await mcp._mcp_server.run(
+            streams[0], streams[1], mcp._mcp_server.create_initialization_options()
+        )
 
-    return handle_sse, transport
+# Define health check endpoint
+async def health_check(request):
+    return JSONResponse({
+        "status": "healthy", 
+        "message": "Shutter Timelock Encryption MCP Server is running",
+        "version": SERVER_VERSION,
+        "timestamp": datetime.datetime.now().isoformat()
+    })
 
-# Create the FastAPI application
-app = FastAPI(
-    title="Shutter Timelock Encryption MCP Server",
-    description="An MCP server with Shutter Network timelock encryption capabilities",
-    version=SERVER_VERSION
-)
+# Define root endpoint
+async def root_info(request):
+    return JSONResponse({
+        "name": "Shutter Timelock Encryption MCP Server",
+        "version": SERVER_VERSION,
+        "sse_endpoint": "/sse",
+        "health_endpoint": "/health",
+        "description": "A Model Context Protocol server providing timelock encryption capabilities using Shutter Network"
+    })
 
-# Add CORS middleware
+# Create the main Starlette application
+app = Starlette(routes=[
+    Route("/", endpoint=root_info),
+    Route("/health", endpoint=health_check),
+    Route("/sse", endpoint=handle_sse),
+    Mount("/messages", app=transport.handle_post_message),
+])
+
+# Add CORS middleware to the Starlette app
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -537,38 +544,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.get("/health")
-def health_check():
-    """Health check endpoint for monitoring and deployment."""
-    return {
-        "status": "healthy", 
-        "message": "Shutter Timelock Encryption MCP Server is running",
-        "version": SERVER_VERSION,
-        "timestamp": datetime.datetime.now().isoformat()
-    }
-
-@app.get("/")
-def root():
-    """Root endpoint with server information."""
-    return {
-        "name": "Shutter Timelock Encryption MCP Server",
-        "version": SERVER_VERSION,
-        "sse_endpoint": "/sse",
-        "health_endpoint": "/health",
-        "description": "A Model Context Protocol server providing timelock encryption capabilities using Shutter Network"
-    }
-
-# Set up SSE endpoint
-sse_handler, transport = create_sse_server(mcp)
-
-@app.get("/sse")
-async def sse_endpoint(request):
-    """SSE endpoint for Claude Web integration."""
-    return await sse_handler(request)
-
-# Mount the message handling endpoint
-app.mount("/messages/", transport.handle_post_message)
 
 # For deployment compatibility
 application = app
