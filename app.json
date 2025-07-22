@@ -1,0 +1,28 @@
+{
+  "name": "Shutter Timelock Encryption MCP Server",
+  "description": "A Model Context Protocol (MCP) server that provides timelock encryption capabilities using the Shutter Network for Claude Web integration",
+  "keywords": ["mcp", "timelock", "encryption", "shutter", "claude", "fastapi"],
+  "website": "https://github.com/your-username/shutter-mcp-server",
+  "repository": "https://github.com/your-username/shutter-mcp-server",
+  "logo": "https://avatars.githubusercontent.com/u/your-logo",
+  "success_url": "/health",
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "stack": "heroku-22",
+  "env": {
+    "PORT": {
+      "description": "Port for the server to listen on",
+      "value": "5002"
+    }
+  },
+  "addons": [],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
