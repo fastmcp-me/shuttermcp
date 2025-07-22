@@ -10,11 +10,11 @@ Features:
 - Timelock encryption using Shutter Network
 - Natural language time parsing ("3 months from now")
 - Unix timestamp support
-- SSE (Server-Sent Events) protocol for Claude web integration
+- Streamable HTTP protocol for Claude web integration with session persistence
 - Comprehensive error handling and user guidance
 
 Author: Manus AI
-Version: 2.0.0
+Version: 2.1.0
 License: MIT
 """
 
@@ -28,18 +28,12 @@ import secrets
 import requests
 from dateutil.parser import parse as parse_date
 from dateutil.relativedelta import relativedelta
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
-from mcp.server.sse import SseServerTransport
-from starlette.applications import Starlette
-from starlette.routing import Mount, Route
-from starlette.responses import JSONResponse, Response
 
 # Configuration
 SHUTTER_API_BASE = "https://shutter-api.chiado.staging.shutter.network/api"
 SHUTTER_REGISTRY_ADDRESS = "0x2693a4Fb363AdD4356e6b80Ac5A27fF05FeA6D9F"
-SERVER_VERSION = "2.0.0"
+SERVER_VERSION = "2.1.0"
 SERVER_PORT = int(os.getenv("PORT", 5002))
 
 class ShutterTimelock:
@@ -232,8 +226,32 @@ class ShutterTimelock:
 # Initialize the timelock handler
 timelock = ShutterTimelock()
 
-# Create the MCP server with tools
+# Create the MCP server with tools using FastMCP's built-in session management
 mcp = FastMCP("Shutter Timelock Encryption Server")
+
+# Add a health endpoint for monitoring
+@mcp.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring server status."""
+    return {
+        "status": "healthy",
+        "message": "Shutter Timelock Encryption MCP Server is running",
+        "version": SERVER_VERSION,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "transport": "streamable-http"
+    }
+
+@mcp.get("/")
+async def root_info():
+    """Root endpoint with server information."""
+    return {
+        "name": "Shutter Timelock Encryption MCP Server",
+        "version": SERVER_VERSION,
+        "mcp_endpoint": "/mcp",
+        "health_endpoint": "/health",
+        "description": "A Model Context Protocol server providing timelock encryption capabilities using Shutter Network",
+        "transport": "streamable-http"
+    }
 
 @mcp.tool()
 def get_current_time() -> str:
@@ -497,63 +515,17 @@ def explain_timelock_encryption() -> str:
     
     return json.dumps(explanation, indent=2)
 
-# Create the MCP SSE transport
-transport = SseServerTransport("/messages")
-
-# Define SSE handler function  
-async def handle_sse(request):
-    async with transport.connect_sse(
-        request.scope, request.receive, request._send
-    ) as streams:
-        await mcp._mcp_server.run(
-            streams[0], streams[1], mcp._mcp_server.create_initialization_options()
-        )
-    # Return empty response since SSE connection handles its own response
-    return Response()
-
-# Define health check endpoint
-async def health_check(request):
-    return JSONResponse({
-        "status": "healthy", 
-        "message": "Shutter Timelock Encryption MCP Server is running",
-        "version": SERVER_VERSION,
-        "timestamp": datetime.datetime.now().isoformat()
-    })
-
-# Define root endpoint
-async def root_info(request):
-    return JSONResponse({
-        "name": "Shutter Timelock Encryption MCP Server",
-        "version": SERVER_VERSION,
-        "sse_endpoint": "/sse",
-        "health_endpoint": "/health",
-        "description": "A Model Context Protocol server providing timelock encryption capabilities using Shutter Network"
-    })
-
-# Create the main Starlette application
-app = Starlette(routes=[
-    Route("/", endpoint=root_info),
-    Route("/health", endpoint=health_check),
-    Route("/sse", endpoint=handle_sse),
-    Mount("/messages", app=transport.handle_post_message),
-])
-
-# Add CORS middleware to the Starlette app
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# For deployment compatibility
-application = app
-
+# Main execution
 if __name__ == "__main__":
-    import uvicorn
     print(f"Starting Shutter Timelock Encryption MCP Server v{SERVER_VERSION}")
     print(f"Server will be available at: http://0.0.0.0:{SERVER_PORT}")
-    print(f"SSE endpoint for Claude web: http://0.0.0.0:{SERVER_PORT}/sse")
-    uvicorn.run(app, host="0.0.0.0", port=SERVER_PORT, log_level="info")
+    print(f"Streamable HTTP endpoint for Claude web: http://0.0.0.0:{SERVER_PORT}/mcp")
+    
+    # Run server using modern Streamable HTTP transport with session persistence
+    mcp.run(
+        transport="streamable-http",
+        host="0.0.0.0", 
+        port=SERVER_PORT,
+        mount_path="/mcp"
+    )
 
