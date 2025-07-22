@@ -30,6 +30,13 @@ from dateutil.parser import parse as parse_date
 from dateutil.relativedelta import relativedelta
 from mcp.server.fastmcp import FastMCP
 
+# Import for custom routes (will be available when FastMCP runs)
+try:
+    from starlette.responses import JSONResponse, Response
+except ImportError:
+    # Will be available at runtime
+    JSONResponse = Response = None
+
 # Configuration
 SHUTTER_API_BASE = "https://shutter-api.chiado.staging.shutter.network/api"
 SHUTTER_REGISTRY_ADDRESS = "0x2693a4Fb363AdD4356e6b80Ac5A27fF05FeA6D9F"
@@ -227,7 +234,14 @@ class ShutterTimelock:
 timelock = ShutterTimelock()
 
 # Create the MCP server with tools using FastMCP's built-in session management
-mcp = FastMCP("Shutter Timelock Encryption Server")
+# Configure for both VS Code MCP and Claude Web compatibility
+mcp = FastMCP(
+    "Shutter Timelock Encryption Server",
+    # Enable stateless HTTP for Claude Web compatibility
+    stateless_http=True,
+    # Enable JSON responses for web clients that don't support SSE
+    json_response=True
+)
 
 @mcp.tool()
 def get_current_time() -> str:
@@ -491,16 +505,47 @@ def explain_timelock_encryption() -> str:
     
     return json.dumps(explanation, indent=2)
 
+# Add custom route for better Claude Web compatibility
+@mcp.custom_route("/health", methods=["GET", "OPTIONS"])
+async def health_check(request):
+    """Health check endpoint with CORS headers for Claude Web compatibility."""
+    response = JSONResponse({
+        "status": "healthy", 
+        "server": "Shutter MCP Server",
+        "version": SERVER_VERSION,
+        "mcp_endpoint": "/mcp"
+    })
+    
+    # Add CORS headers for Claude Web
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Accept, Authorization, Mcp-Session-Id, Mcp-Protocol-Version"
+    
+    return response
+
+# Add OPTIONS handler for the main MCP endpoint
+@mcp.custom_route("/mcp", methods=["OPTIONS"])
+async def mcp_options(request):
+    """Handle CORS preflight requests for Claude Web."""
+    response = Response()
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, DELETE"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Accept, Authorization, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID"
+    response.headers["Access-Control-Max-Age"] = "86400"
+    
+    return response
+
 # Main execution
 if __name__ == "__main__":
     print(f"Starting Shutter Timelock Encryption MCP Server v{SERVER_VERSION}")
     print(f"Server will be available at: http://0.0.0.0:{SERVER_PORT}")
-    print(f"Streamable HTTP endpoint for Claude web: http://0.0.0.0:{SERVER_PORT}/mcp")
+    print(f"VS Code MCP endpoint: http://0.0.0.0:{SERVER_PORT}/mcp")
+    print(f"Claude Web endpoint: https://shutter-mcp-timelock-9db5ad982744.herokuapp.com/mcp")
     
     # Configure host and port via settings
     mcp.settings.host = "0.0.0.0"
     mcp.settings.port = SERVER_PORT
     
-    # Run server using modern Streamable HTTP transport with session persistence
+    # Run server using modern Streamable HTTP transport with dual compatibility
     mcp.run(transport="streamable-http")
 
