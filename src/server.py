@@ -229,30 +229,6 @@ timelock = ShutterTimelock()
 # Create the MCP server with tools using FastMCP's built-in session management
 mcp = FastMCP("Shutter Timelock Encryption Server")
 
-# Add a health endpoint for monitoring
-@mcp.get("/health")
-async def health_check():
-    """Health check endpoint for monitoring server status."""
-    return {
-        "status": "healthy",
-        "message": "Shutter Timelock Encryption MCP Server is running",
-        "version": SERVER_VERSION,
-        "timestamp": datetime.datetime.now().isoformat(),
-        "transport": "streamable-http"
-    }
-
-@mcp.get("/")
-async def root_info():
-    """Root endpoint with server information."""
-    return {
-        "name": "Shutter Timelock Encryption MCP Server",
-        "version": SERVER_VERSION,
-        "mcp_endpoint": "/mcp",
-        "health_endpoint": "/health",
-        "description": "A Model Context Protocol server providing timelock encryption capabilities using Shutter Network",
-        "transport": "streamable-http"
-    }
-
 @mcp.tool()
 def get_current_time() -> str:
     """Get the current date and time in UTC."""
