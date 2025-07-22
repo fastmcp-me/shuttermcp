@@ -520,14 +520,7 @@ def create_sse_server(mcp: FastMCP):
                 streams[0], streams[1], mcp._mcp_server.create_initialization_options()
             )
 
-    # Create Starlette routes for SSE and message handling
-    routes = [
-        Route("/sse", endpoint=handle_sse),
-        Mount("/messages/", app=transport.handle_post_message),
-    ]
-
-    # Create a Starlette app
-    return Starlette(routes=routes)
+    return handle_sse, transport
 
 # Create the FastAPI application
 app = FastAPI(
@@ -545,9 +538,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount the SSE server
-app.mount("/", create_sse_server(mcp))
-
 @app.get("/health")
 def health_check():
     """Health check endpoint for monitoring and deployment."""
@@ -557,6 +547,28 @@ def health_check():
         "version": SERVER_VERSION,
         "timestamp": datetime.datetime.now().isoformat()
     }
+
+@app.get("/")
+def root():
+    """Root endpoint with server information."""
+    return {
+        "name": "Shutter Timelock Encryption MCP Server",
+        "version": SERVER_VERSION,
+        "sse_endpoint": "/sse",
+        "health_endpoint": "/health",
+        "description": "A Model Context Protocol server providing timelock encryption capabilities using Shutter Network"
+    }
+
+# Set up SSE endpoint
+sse_handler, transport = create_sse_server(mcp)
+
+@app.get("/sse")
+async def sse_endpoint(request):
+    """SSE endpoint for Claude Web integration."""
+    return await sse_handler(request)
+
+# Mount the message handling endpoint
+app.mount("/messages/", transport.handle_post_message)
 
 # For deployment compatibility
 application = app
