@@ -497,11 +497,10 @@ if __name__ == "__main__":
     print(f"Server will be available at: http://0.0.0.0:{SERVER_PORT}")
     print(f"Streamable HTTP endpoint for Claude web: http://0.0.0.0:{SERVER_PORT}/mcp")
     
+    # Configure host and port via settings
+    mcp.settings.host = "0.0.0.0"
+    mcp.settings.port = SERVER_PORT
+    
     # Run server using modern Streamable HTTP transport with session persistence
-    mcp.run(
-        transport="streamable-http",
-        host="0.0.0.0", 
-        port=SERVER_PORT,
-        mount_path="/mcp"
-    )
+    mcp.run(transport="streamable-http")
 
