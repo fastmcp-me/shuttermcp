@@ -7,8 +7,7 @@ A Model Context Protocol (MCP) server that provides timelock encryption capabili
 - Timelock Encryption: Encrypt messages that unlock at future timestamps
 - Natural Language Time Parsing: Use expressions like "3 months from now"
 - Unix Timestamp Support: Direct timestamp input for precise timing
-- Claude Web Integration: SSE protocol support for seamless Claude integration
-- VS Code MCP Support: Compatible with VS Code MCP extensions
+- Claude Web, VS Code MCP Support
 - Comprehensive Error Handling: User-friendly error messages and guidance
 - Production Ready: Docker support, health checks, and monitoring
 
