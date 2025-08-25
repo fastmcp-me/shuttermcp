@@ -1,4 +1,4 @@
-# Shutter Timelock Encryption MCP Server
+# Shutter MCP
 
 A Model Context Protocol (MCP) server that provides timelock encryption capabilities using the Shutter Network. This server allows users to encrypt messages that can only be decrypted after a specified future time, enabling trustless time-delayed communications.
 
